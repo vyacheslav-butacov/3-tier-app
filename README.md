@@ -101,3 +101,180 @@ resource "aws_db_instance" "postgres" {
   storage_encrypted       = true
   backup_retention_period = 7
 }
+```
+
+
+## 4. Automated Microservices Deployment
+
+**Solution:**
+
+Implement **CI/CD pipelines** using **GitHub Actions** to automate the build, test, and deployment of microservices to the Kubernetes cluster for **openinnovation.ai**.
+
+## Key Steps
+
+1. **Build Docker Images:** 
+   - Build Docker images for both backend and frontend services.
+   - Push the built images to a container registry (e.g., Amazon ECR).
+
+2. **Deploy to Kubernetes:** 
+   - Use `kubectl` or Helm charts to deploy the services to the EKS cluster.
+   - Ensure that the deployments are updated with the latest image tags.
+
+3. **Manage Configurations and Secrets:**
+   - Securely manage configurations and secrets by fetching them from AWS Secrets Manager.
+   - Integrate Kubernetes with external secrets management tools to inject secrets into the deployments.
+
+## Important Configuration Snippets
+
+### GitHub Actions Workflow
+
+Create a GitHub Actions workflow to handle the CI/CD process. This workflow will build Docker images, push them to Amazon ECR, and update the Kubernetes deployments.
+
+```yaml
+# .github/workflows/deploy.yml
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and Push Backend Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/backend:${IMAGE_TAG} ./backend
+          docker push $ECR_REGISTRY/backend:${IMAGE_TAG}
+
+      - name: Build and Push Frontend Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/frontend:${IMAGE_TAG} ./frontend
+          docker push $ECR_REGISTRY/frontend:${IMAGE_TAG}
+
+      - name: Configure kubectl
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update Kubernetes Deployment
+        run: |
+          kubectl set image deployment/backend-deployment backend=${{ steps.login-ecr.outputs.registry }}/backend:${{ github.sha }}
+          kubectl set image deployment/frontend-deployment frontend=${{ steps.login-ecr.outputs.registry }}/frontend:${{ github.sha }}
+```
+
+### Helm Deployment Manifests
+Define Kubernetes deployment manifests using Helm to manage the backend and frontend services. These manifests will reference the Docker images pushed to ECR and utilize secrets for sensitive information.
+```
+# microservices/helm/deployment.yaml
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: <ECR_REGISTRY>/backend:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DATABASE_URL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: <ECR_REGISTRY>/frontend:latest
+          ports:
+            - containerPort: 80
+```
+
+
+
+### External Secrets Configuration
+To securely access PostgreSQL credentials stored in AWS Secrets Manager, use tools like External Secrets or Secrets Store CSI Driver. Below is an example using External Secrets.
+```
+# microservices/helm/postgres-secret.yaml
+
+apiVersion: external-secrets.io/v1alpha1
+kind: ExternalSecret
+metadata:
+  name: db-secret
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: SecretStore
+  target:
+    name: db-secret
+    creationPolicy: Owner
+  data:
+    - secretKey: DATABASE_URL
+      remoteRef:
+        key: openinnovation-ai-postgres-credentials
+        property: username
+    - secretKey: DATABASE_PASSWORD
+      remoteRef:
+        key: openinnovation-ai-postgres-credentials
+        property: password
+```
+
+### Explanation
+- **CI/CD Pipeline**: The GitHub Actions workflow automates the entire process of building, testing, and deploying microservices. It ensures that every commit to the main branch triggers the pipeline, promoting continuous integration and delivery.
+
+- **Docker Image Management**: By tagging Docker images with the commit SHA, you ensure traceability and uniqueness of each build. Pushing these images to Amazon ECR provides a secure and scalable container registry.
+
+- **Kubernetes Deployment**: Using kubectl set image, the workflow updates the running deployments with the new Docker images. Helm charts manage the Kubernetes resources, promoting consistency and reusability.
+
+- **Secrets Management**: Integrating External Secrets with AWS Secrets Manager ensures that sensitive information like database credentials are securely managed and injected into the Kubernetes environment without hardcoding them into manifests or code.
+
+- **Security**: By leveraging AWS IAM roles and policies, the system ensures that only authorized components can access the necessary secrets, adhering to the principle of least privilege.
+
+- **Scalability and Reliability**: Deploying multiple replicas for each service ensures high availability and load balancing. Kubernetes handles the orchestration, scaling, and self-healing of the microservices.
