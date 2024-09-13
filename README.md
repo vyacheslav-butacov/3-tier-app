@@ -431,3 +431,41 @@ Implement a comprehensive monitoring system to ensure the reliability, performan
 5. **Alerting with Alertmanager**
    - Configure Alertmanager to handle alerts from Prometheus and route them to communication channels like email or Slack.
    - Define alerting rules for thresholds such as high CPU usage, memory leaks, or increased error rates.
+
+---
+
+**Repository Structure:**
+```
+/infra
+  ├── main.tf
+  ├── variables.tf
+  ├── outputs.tf
+  └── modules/
+      ├── vpc/
+      ├── eks/
+      └── rds/
+  
+/microservices
+  ├── backend/
+  │   ├── Dockerfile
+  │   └── src/
+  ├── frontend/
+  │   ├── Dockerfile
+  │   └── src/
+  └── helm/
+    ├── Chart.yaml
+    ├── values.yaml
+    └── templates/
+        ├── deployment.yaml
+        ├── service.yaml
+        ├── ingress.yaml
+        ├── postgres-secret.yaml
+        └── secretstore.yaml
+/.github
+  └── workflows/
+      ├── deploy.yml
+      └── ci.yml
+
+README.md
+
+```
