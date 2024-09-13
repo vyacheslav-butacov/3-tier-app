@@ -341,3 +341,57 @@ Establish a streamlined release lifecycle to ensure seamless deployment, mainten
 - **Versioning:** Use semantic versioning (e.g., v1.0.0) for all services.
 - **Rollback Strategy:** Utilize Kubernetes rolling updates to facilitate easy rollbacks in case of issues.
 - **Approval Gates:** Implement manual approval steps in the CI/CD pipeline for production deployments to ensure quality control.
+
+
+
+
+# 6. Testing Approach for Infrastructure
+## Strategy:
+
+- **Unit** Testing: Test individual Terraform modules using tools like terraform validate and tflint.
+- **Integration Testing**: Deploy infrastructure to a test environment and verify resources using tools like Terratest.
+- **Compliance Testing**: Ensure infrastructure adheres to security and compliance standards using tools like Checkov or AWS Config.
+- **Continuous Testing**: Integrate tests into the CI/CD pipeline to automatically validate infrastructure changes.
+
+```
+# Run Terraform validation and linting
+terraform init
+terraform validate
+tflint
+```
+- **Add Testing Steps to GitHub Actions**
+```
+# .github/workflows/ci.yml
+
+name: Terraform CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.9.5
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Run TFLint
+        run: tflint
+
+      - name: Run Checkov
+        run: checkov -d infra/
+
+```
